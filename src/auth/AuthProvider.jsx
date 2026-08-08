@@ -9,6 +9,7 @@ function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -45,9 +46,13 @@ function AuthProvider({ children }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!mounted) {
         return;
+      }
+
+      if (event === "PASSWORD_RECOVERY") {
+        setPasswordRecovery(true);
       }
 
       setSession(nextSession ?? null);
@@ -105,18 +110,48 @@ function AuthProvider({ children }) {
     setError("");
   }, []);
 
+  const updatePassword = useCallback(async (newPassword) => {
+    setError("");
+
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (updateError) {
+      console.error("Wachtwoord instellen mislukt:", updateError);
+      setError("Het wachtwoord kon niet worden ingesteld. Probeer het opnieuw.");
+      return { success: false, error: updateError };
+    }
+
+    setPasswordRecovery(false);
+
+    return { success: true, error: null };
+  }, []);
+
   const value = useMemo(
     () => ({
       session,
       user,
       loading,
       error,
+      passwordRecovery,
       isAuthenticated: Boolean(session && user),
       signIn,
       signOut,
       clearError,
+      updatePassword,
     }),
-    [session, user, loading, error, signIn, signOut, clearError]
+    [
+      session,
+      user,
+      loading,
+      error,
+      passwordRecovery,
+      signIn,
+      signOut,
+      clearError,
+      updatePassword,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
